@@ -56,9 +56,6 @@ $CLEAN  .= File::Spec->catfile(qw(methods *.xpl));
 
 find(sub { push(@PM_FILES, $File::Find::name) if (-f $_ and /\.pm$/) }, 'lib');
 
-# Exclude Apache2 stuff until it's ready for deployment
-@PM_FILES = grep(! /Apache2/, @PM_FILES);
-
 %PM_FILES = map { ($temp = $_) =~ s|^lib|\$\(INST_LIB\)|; $_ => $temp }
     @PM_FILES;
 # Handle the method code in "methods" specially:

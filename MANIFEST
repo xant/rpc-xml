@@ -19,6 +19,7 @@ lib/Apache/RPC/Status.pm       # Apache::Status for Apache::RPC::Server data
 lib/Apache/RPC/status.base     # Apache version of the system.status method
 lib/Apache/RPC/status.code
 lib/Apache/RPC/status.help
+lib/Apache2/RPC/Server.pm      # Apache-centric server implementation
 lib/RPC/XML.pm                 # Base data-type manipuation, etc.
 lib/RPC/XML/Client.pm          # Basic client class
 lib/RPC/XML/Function.pm        # Reference client implementation
