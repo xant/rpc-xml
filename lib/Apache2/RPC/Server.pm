@@ -33,10 +33,11 @@ package Apache2::RPC::Server;
 use 5.005;
 use strict;
 
-use Socket;
+use APR::SockAddr;
 use File::Spec;
 use File::Temp qw/ :POSIX /;
 use Apache2::RequestRec;
+use Apache2::Connection;
 use Apache2::Const ':common';
 
 use RPC::XML::Server;
@@ -178,11 +179,9 @@ sub handler ($$)
             # We set some short-lifespan localized keys on $srv to let the
             # methods have access to client connection info
             $c = $r->connection;
-            #($peerport, $peeraddr) = unpack_sockaddr_in($c->remote_addr());
-            #$peerhost = inet_ntoa($peeraddr);
-            ##local $srv->{peeraddr} = $peeraddr;
-            #local $srv->{peerhost} = $peerhost;
-            #local $srv->{peerport} = $peerport;
+            local $srv->{peeraddr} = $c->remote_addr->ip_get;
+            local $srv->{peerhost} = $c->remote_host;
+            local $srv->{peerport} = $c->remote_addr->port;
             $resp = $srv->dispatch($content);
         }
 
