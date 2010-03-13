@@ -37,10 +37,15 @@ use APR::SockAddr;
 use File::Spec;
 use File::Temp qw/ :POSIX /;
 use Apache2::RequestRec;
+use Apache2::RequestUtil;
 use Apache2::Connection;
+use Apache2::ServerUtil;
+use Apache2::Log;
 use Apache2::Const ':common';
 
 use RPC::XML::Server;
+
+our $COMPRESS_THRESHOLD = (1024*150); # 150 KB
 @Apache2::RPC::Server::ISA = qw(RPC::XML::Server);
 
 BEGIN
@@ -96,6 +101,7 @@ sub handler ($$)
 {
     my $r = shift;
     my $class = $r->handler;
+    my $s = Apache2::ServerUtil->server;
 
     my ($srv, $content, $resp, $hdrs, $hdrs_out, $compress, $length,
         $do_compress, $com_engine, $parser, $me, $resp_fh, $c, $peeraddr,
@@ -105,7 +111,7 @@ sub handler ($$)
     $me = (ref($class) || $class) . '::handler';
     unless (ref $srv)
     {
-        $r->log_error("$me: PANIC! " . $srv);
+        $s->log_error("$me: PANIC! " . $srv);
         return SERVER_ERROR;
     }
 
@@ -141,7 +147,7 @@ sub handler ($$)
             # Spin up the compression engine
             unless ($com_engine = Compress::Zlib::inflateInit())
             {
-                $r->log_error("$me: Unable to init the Compress::Zlib engine");
+                $s->log_error("$me: Unable to init the Compress::Zlib engine");
                 return SERVER_ERROR;
             }
         }
@@ -154,14 +160,14 @@ sub handler ($$)
             {
                 unless ($content = $com_engine->inflate($content))
                 {
-                    $r->log_error("$me: Error inflating compressed data");
+                    $s->log_error("$me: Error inflating compressed data");
                     return SERVER_ERROR;
                 }
             }
             eval { $parser->parse_more($content); };
             if ($@)
             {
-                $r->log_error("$me: XML parse error: $@");
+                $s->log_error("$me: XML parse error: $@");
                 return SERVER_ERROR;
             }
         }
@@ -169,7 +175,7 @@ sub handler ($$)
         eval { $content = $parser->parse_done; };
         if ($@)
         {
-            $r->log_error("$me: XML parse error at end: $@");
+            $s->log_error("$me: XML parse error at end: $@");
             return SERVER_ERROR;
         }
 
@@ -188,7 +194,7 @@ sub handler ($$)
         # Step 4: Form up and send the headers and body of the response
         $r->no_cache(1);
         $do_compress = 0; # Clear it
-        if ($compress and ($resp->length > $srv->compress_thresh) and
+        if ($compress and ($resp->length > $COMPRESS_THRESHOLD) and
             (($r->headers_in->{'Accept-Encoding'} || '') =~ $srv->compress_re))
         {
             $do_compress = 1;
@@ -202,7 +208,7 @@ sub handler ($$)
         {
             unless ($resp_fh = tmpfile())
             {
-                $r->log_error("$me: Error opening tmpfile");
+                $s->log_error("$me: Error opening tmpfile");
                 return SERVER_ERROR;
             }
 
@@ -216,7 +222,7 @@ sub handler ($$)
                 my $fh2 = tmpfile();
                 unless ($fh2)
                 {
-                    $r->log_error("$me: Error opening second tmpfile");
+                    $s->log_error("$me: Error opening second tmpfile");
                     return SERVER_ERROR;
                 }
 
@@ -227,7 +233,7 @@ sub handler ($$)
                 # Spin up the compression engine
                 unless ($com_engine = Compress::Zlib::deflateInit())
                 {
-                    $r->log_error("$me: Unable to initialize the " .
+                    $s->log_error("$me: Unable to initialize the " .
                                   'Compress::Zlib engine');
                     return SERVER_ERROR;
                 }
@@ -240,7 +246,7 @@ sub handler ($$)
                 {
                     unless (defined($out = $com_engine->deflate(\$buf)))
                     {
-                        $r->log_error("$me: Compression failure in deflate()");
+                        $s->log_error("$me: Compression failure in deflate()");
                         return SERVER_ERROR;
                     }
                     print $resp_fh $out;
@@ -248,7 +254,7 @@ sub handler ($$)
                 # Make sure we have all that's left
                 unless (defined($out = $com_engine->flush))
                 {
-                    $r->log_error("$me: Compression flush failure in deflate");
+                    $s->log_error("$me: Compression flush failure in deflate");
                     return SERVER_ERROR;
                 }
                 print $resp_fh $out;
@@ -477,13 +483,11 @@ sub get_server
         $servid = $r->dir_config("${prefix}RpcServer") || '<default>';
         $nocomp = $r->dir_config('NoCompression') || '';
 
-
         my $srv = $Apache2::RPC::Server::SERVER_TABLE{$servid} ||
             $self->new(apache      => $r,
                        server_id   => $servid,
                        prefix      => $prefix,
                        path        => $r->location);
-        $srv->compress_thresh(1024*150); # 150 KB
         return $srv;
     }
     else
