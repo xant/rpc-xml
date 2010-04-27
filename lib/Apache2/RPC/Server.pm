@@ -126,7 +126,7 @@ sub handler ($$)
         # These headers are either only sent for HEAD requests or are different
         # enough to move here from the above block
         $r->set_last_modified($srv->started);
-        $r->send_http_header;
+        #$r->send_http_header;
     }
     elsif ($r->method eq 'POST')
     {
@@ -270,7 +270,7 @@ sub handler ($$)
             seek($resp_fh, 0, 0);
 
             $r->headers_out->add('Content-Length' => -s $resp_fh);
-            $r->send_http_header;
+            #$r->send_http_header;
             $r->send_fd($resp_fh);
         }
         else
