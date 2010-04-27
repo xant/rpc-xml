@@ -104,7 +104,7 @@ sub handler ($$)
     my $s = Apache2::ServerUtil->server;
 
     my ($srv, $content, $resp, $hdrs, $hdrs_out, $compress, $length,
-        $do_compress, $com_engine, $parser, $me, $resp_fh, $c, $peeraddr,
+        $do_compress, $com_engine, $parser, $me, $resp_fh, $filename,  $c, $peeraddr,
         $peerhost, $peerport);
 
     $srv = (ref $class) ? $class : Apache2::RPC::Server->get_server($r);
@@ -206,7 +206,7 @@ sub handler ($$)
         if ($srv->message_file_thresh and
             $srv->message_file_thresh < $resp->length)
         {
-            unless ($resp_fh = tmpfile())
+            unless (($resp_fh, $filename) = tmpnam())
             {
                 $s->log_error("$me: Error opening tmpfile");
                 return SERVER_ERROR;
@@ -271,7 +271,7 @@ sub handler ($$)
 
             $r->headers_out->add('Content-Length' => -s $resp_fh);
             #$r->send_http_header;
-            $r->send_fd($resp_fh);
+            $r->sendfile($filename);
         }
         else
         {
